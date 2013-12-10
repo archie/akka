@@ -82,22 +82,29 @@ private[akka] object Reflect {
       throw new IllegalArgumentException(s"$msg found on $clazz for arguments [$argClasses]")
     }
 
-    val candidates: Array[Constructor[T]] =
-      if (args.isEmpty) Try { clazz.getDeclaredConstructor() } map { Array(_) } getOrElse (Array.empty)
+    val constructor: Constructor[T] =
+      if (args.isEmpty) Try { clazz.getDeclaredConstructor() } getOrElse (null)
       else {
         val length = args.length
-        clazz.getDeclaredConstructors.asInstanceOf[Array[Constructor[T]]] filter (c ⇒
-          c.getParameterTypes.length == length &&
-            (c.getParameterTypes zip args forall {
-              case (found, required) ⇒
-                found.isInstance(required) || BoxedType(found).isInstance(required) ||
-                  (required == null && !found.isPrimitive)
-            }))
+        val candidates =
+          clazz.getDeclaredConstructors.asInstanceOf[Array[Constructor[T]]].iterator filter { c ⇒
+            val parameterTypes = c.getParameterTypes
+            parameterTypes.length == length &&
+              (parameterTypes.iterator zip args.iterator forall {
+                case (found, required) ⇒
+                  found.isInstance(required) || BoxedType(found).isInstance(required) ||
+                    (required == null && !found.isPrimitive)
+              })
+          }
+        if (candidates.hasNext) {
+          val cstrtr = candidates.next()
+          if (candidates.hasNext) error("multiple matching constructors")
+          else cstrtr
+        } else null
       }
 
-    if (candidates.size == 1) candidates.head
-    else if (candidates.size > 1) error("multiple matching constructors")
-    else error("no matching constructor")
+    if (constructor == null) error("no matching constructor")
+    else constructor
   }
 
   private def safeGetClass(a: Any): Class[_] =

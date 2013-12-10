@@ -307,7 +307,7 @@ abstract class ExecutorServiceConfigurator(config: Config, prerequisites: Dispat
  */
 abstract class MessageDispatcherConfigurator(_config: Config, val prerequisites: DispatcherPrerequisites) {
 
-  val config: Config = if (_config.isInstanceOf[CachingConfig]) config else new CachingConfig(_config.resolve())
+  val config: Config = new CachingConfig(_config)
 
   /**
    * Returns an instance of MessageDispatcher given the configuration.

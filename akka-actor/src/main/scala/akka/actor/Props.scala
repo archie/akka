@@ -190,32 +190,8 @@ final case class Props(deploy: Deploy, clazz: Class[_], args: immutable.Seq[Any]
   private[this] var _cachedActorClass: Class[_ <: Actor] = _
 
   private[this] def producer: IndirectActorProducer = {
-    def get1stArg[T]: T = args.head.asInstanceOf[T]
-    def get2ndArg[T]: T = args.tail.head.asInstanceOf[T]
-
     if (_producer eq null)
-      _producer = {
-        if (classOf[IndirectActorProducer].isAssignableFrom(clazz)) {
-          import IndirectActorProducer._
-          // The cost of doing reflection to create these for every props
-          // is rather high, so we match on them and do new instead
-          clazz match {
-            case TypedCreatorFunctionConsumerClass ⇒
-              new TypedCreatorFunctionConsumer(get1stArg, get2ndArg)
-            case UntypedActorFactoryConsumerClass ⇒
-              new UntypedActorFactoryConsumer(get1stArg)
-            case CreatorFunctionConsumerClass ⇒
-              new CreatorFunctionConsumer(get1stArg)
-            case CreatorConsumerClass ⇒
-              new CreatorConsumer(get1stArg, get2ndArg)
-            case _ ⇒
-              Reflect.instantiate(clazz, args).asInstanceOf[IndirectActorProducer]
-          }
-        } else if (classOf[Actor].isAssignableFrom(clazz)) {
-          if (args.isEmpty) new NoArgsReflectConstructor(clazz.asInstanceOf[Class[_ <: Actor]])
-          else new ArgsReflectConstructor(clazz.asInstanceOf[Class[_ <: Actor]], args)
-        } else throw new IllegalArgumentException(s"unknown actor creator [$clazz]")
-      }
+      _producer = IndirectActorProducer(clazz, args)
 
     _producer
   }
@@ -388,6 +364,30 @@ private[akka] object IndirectActorProducer {
   val CreatorFunctionConsumerClass = classOf[CreatorFunctionConsumer]
   val CreatorConsumerClass = classOf[CreatorConsumer]
   val TypedCreatorFunctionConsumerClass = classOf[TypedCreatorFunctionConsumer]
+
+  def apply(clazz: Class[_], args: immutable.Seq[Any]): IndirectActorProducer = {
+    if (classOf[IndirectActorProducer].isAssignableFrom(clazz)) {
+      def get1stArg[T]: T = args.head.asInstanceOf[T]
+      def get2ndArg[T]: T = args.tail.head.asInstanceOf[T]
+      // The cost of doing reflection to create these for every props
+      // is rather high, so we match on them and do new instead
+      clazz match {
+        case TypedCreatorFunctionConsumerClass ⇒
+          new TypedCreatorFunctionConsumer(get1stArg, get2ndArg)
+        case UntypedActorFactoryConsumerClass ⇒
+          new UntypedActorFactoryConsumer(get1stArg)
+        case CreatorFunctionConsumerClass ⇒
+          new CreatorFunctionConsumer(get1stArg)
+        case CreatorConsumerClass ⇒
+          new CreatorConsumer(get1stArg, get2ndArg)
+        case _ ⇒
+          Reflect.instantiate(clazz, args).asInstanceOf[IndirectActorProducer]
+      }
+    } else if (classOf[Actor].isAssignableFrom(clazz)) {
+      if (args.isEmpty) new NoArgsReflectConstructor(clazz.asInstanceOf[Class[_ <: Actor]])
+      else new ArgsReflectConstructor(clazz.asInstanceOf[Class[_ <: Actor]], args)
+    } else throw new IllegalArgumentException(s"unknown actor creator [$clazz]")
+  }
 }
 
 /**
